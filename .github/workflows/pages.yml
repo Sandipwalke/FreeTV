@@ -30,11 +30,11 @@ jobs:
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          name: freetv-pages
+          name: freetv-pages-${{ github.run_id }}
           path: .
 
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
         with:
-          artifact_name: freetv-pages
+          artifact_name: freetv-pages-${{ github.run_id }}
