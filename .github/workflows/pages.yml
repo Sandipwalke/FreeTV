@@ -28,14 +28,14 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload exactly one Pages artifact
+      - name: Upload one Pages artifact for this run
         uses: actions/upload-pages-artifact@v3
         with:
-          name: freetv-pages
+          name: freetv-pages-${{ github.run_id }}
           path: .
 
-      - name: Deploy Pages artifact
+      - name: Deploy the matching Pages artifact
         id: deployment
         uses: actions/deploy-pages@v4
         with:
-          artifact_name: freetv-pages
+          artifact_name: freetv-pages-${{ github.run_id }}
