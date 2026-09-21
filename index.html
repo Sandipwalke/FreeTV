@@ -12,26 +12,44 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="ambient ambient-one"></div>
-  <div class="ambient ambient-two"></div>
   <header class="topbar shell">
     <a class="brand" href="#" aria-label="FreeTV home"><span class="brand-mark"><i></i><i></i><i></i></span><span>Free<span class="brand-accent">TV</span></span></a>
     <div class="top-actions"><span class="live-dot"></span><span class="live-label">Live directory</span><button class="icon-button" id="themeButton" title="Toggle theme" aria-label="Toggle theme">◐</button></div>
   </header>
 
   <main class="shell">
-    <section class="hero">
-      <div class="hero-copy"><p class="eyebrow"><span></span> Open television, one click away</p><h1>Find your next<br /><em>live moment.</em></h1><p class="hero-text">Explore free, publicly available channels from around the world. No account. No subscription. Just press play.</p></div>
-      <div class="hero-orbit"><div class="orbit-ring ring-a"></div><div class="orbit-ring ring-b"></div><div class="orbit-card"><span class="signal">⌁</span><strong id="heroCount">—</strong><small>channels online</small></div></div>
-    </section>
+    <section class="hero" aria-hidden="true"></section>
 
     <section class="player-layout">
-      <div class="player-card"><div class="video-wrap" id="videoWrap"><div class="video-placeholder" id="videoPlaceholder"><div class="play-orb">▶</div><p>Select a channel to start watching</p><small>Streams open in your browser</small></div><video id="video" controls playsinline></video></div><div class="now-playing"><div><span class="kicker">NOW PLAYING</span><h2 id="nowTitle">Choose a channel</h2><p id="nowMeta">Your selected stream will appear here</p></div><button class="share-button" id="shareButton" title="Copy stream link">↗ <span>Share</span></button></div></div>
+      <div class="player-card">
+        <div class="video-wrap" id="videoWrap">
+          <div class="video-placeholder" id="videoPlaceholder"><div class="play-orb">▶</div><p>Select a channel to start watching</p><small>Streams open in your browser</small></div>
+          <video id="video" controls playsinline></video>
+        </div>
+        <div class="now-playing">
+          <div><span class="kicker">NOW PLAYING</span><h2 id="nowTitle">Choose a channel</h2><p id="nowMeta">Your selected stream will appear here</p></div>
+          <button class="share-button" id="shareButton" title="Copy stream link">↗ <span>Share</span></button>
+        </div>
+      </div>
       <aside class="quick-panel"><div class="panel-heading"><span>Quick picks</span><button id="randomButton">Surprise me <b>↗</b></button></div><div id="quickPicks" class="quick-list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div></aside>
     </section>
 
-    <section class="catalog"><div class="catalog-head"><div><p class="eyebrow"><span></span> Browse the world</p><h2>All channels</h2></div><div class="catalog-tools"><label class="search"><span>⌕</span><input id="searchInput" type="search" placeholder="Search channels..." autocomplete="off" /></label><select id="countrySelect" aria-label="Filter by country"><option value="">All countries</option></select></div></div><div id="genreChips" class="chips"><button class="chip active" data-genre="">All</button></div><div id="channelGrid" class="channel-grid"><div class="empty-state">Loading the channel guide<span class="loader"></span></div></div><div class="load-more-wrap"><button class="load-more" id="loadMore">Load more channels <span>↓</span></button></div></section>
+    <section class="catalog">
+      <div class="catalog-head">
+        <div><p class="eyebrow"><span></span> Browse the world</p><h2>All channels</h2></div>
+        <div class="catalog-tools">
+          <label class="search"><span>⌕</span><input id="searchInput" type="search" placeholder="Search channels..." autocomplete="off" /></label>
+          <label class="country-filter"><span>Country</span><select id="countrySelect" aria-label="Filter by country"><option value="">All countries</option></select></label>
+        </div>
+      </div>
+      <div id="genreChips" class="chips" aria-label="Channel categories"><button class="chip active" data-genre="">All</button></div>
+      <div class="channel-list-scroll" id="channelListScroll">
+        <div id="channelGrid" class="channel-grid"><div class="empty-state">Loading the channel guide<span class="loader"></span></div></div>
+        <div class="load-more-wrap"><button class="load-more" id="loadMore">Load more channels <span>↓</span></button></div>
+      </div>
+    </section>
   </main>
+
   <footer class="shell footer"><span>FreeTV</span><span>Powered by the <a href="https://github.com/iptv-org/iptv" target="_blank" rel="noreferrer">iptv-org</a> community</span><span>Free and open web streams</span></footer>
   <script src="app.js"></script>
 </body>
