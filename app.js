@@ -14,10 +14,6 @@ const state = {
 };
 
 const $ = selector => document.querySelector(selector);
-let ambientTimer = null;
-let ambientSamplingDisabled = false;
-const ambientCanvas = $('#ambientCanvas');
-const ambientContext = ambientCanvas?.getContext('2d', { willReadFrequently: true });
 
 function escapeHTML(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -175,71 +171,7 @@ function renderQuick() {
   ).join('');
 }
 
-function resetAmbient() {
-  if (ambientTimer) {
-    clearInterval(ambientTimer);
-    ambientTimer = null;
-  }
-  ambientSamplingDisabled = false;
-  const wrap = $('#videoWrap');
-  if (wrap) {
-    wrap.classList.remove('ambient-active');
-    wrap.style.setProperty('--ambient-left', 'rgba(197,243,90,.08)');
-    wrap.style.setProperty('--ambient-right', 'rgba(80,120,180,.08)');
-  }
-}
-
-function averageColor(data, startX, endX, width, height) {
-  let r = 0, g = 0, b = 0, weight = 0;
-  for (let y = 1; y < height - 1; y += 2) {
-    for (let x = startX; x < endX; x += 2) {
-      const i = (y * width + x) * 4;
-      const alpha = data[i + 3];
-      if (!alpha) continue;
-      const rr = data[i], gg = data[i + 1], bb = data[i + 2];
-      const brightness = (rr + gg + bb) / 3;
-      if (brightness < 14) continue;
-      const w = Math.min(1, brightness / 110);
-      r += rr * w; g += gg * w; b += bb * w; weight += w;
-    }
-  }
-  if (!weight) return [35, 42, 58];
-  return [Math.round(r / weight), Math.round(g / weight), Math.round(b / weight)];
-}
-
-function sampleAmbient() {
-  if (ambientSamplingDisabled || document.hidden || !ambientContext) return;
-  const video = $('#video');
-  const wrap = $('#videoWrap');
-  if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) return;
-
-  try {
-    const width = 32, height = 18;
-    ambientCanvas.width = width;
-    ambientCanvas.height = height;
-    ambientContext.drawImage(video, 0, 0, width, height);
-    const pixels = ambientContext.getImageData(0, 0, width, height).data;
-    const left = averageColor(pixels, 0, 16, width, height);
-    const right = averageColor(pixels, 16, 32, width, height);
-    wrap.style.setProperty('--ambient-left', `rgba(${left[0]},${left[1]},${left[2]},.42)`);
-    wrap.style.setProperty('--ambient-right', `rgba(${right[0]},${right[1]},${right[2]},.42)`);
-    wrap.classList.add('ambient-active');
-  } catch (error) {
-    ambientSamplingDisabled = true;
-    wrap.classList.remove('ambient-active');
-  }
-}
-
-function startAmbient() {
-  resetAmbient();
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const interval = window.matchMedia('(max-width:720px)').matches ? 1500 : 900;
-  sampleAmbient();
-  ambientTimer = setInterval(sampleAmbient, interval);
-}
-
 function stopPlayer() {
-  resetAmbient();
   if (state.hls) {
     state.hls.destroy();
     state.hls = null;
@@ -282,7 +214,6 @@ function play(channel) {
   }
 
   video.play().catch(() => {});
-  video.addEventListener('playing', startAmbient, { once: true });
 
   $('#nowTitle').textContent = channel.name;
   $('#nowMeta').textContent =
