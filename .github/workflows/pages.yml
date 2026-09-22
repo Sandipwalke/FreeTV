@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+  schedule:
+    - cron: "17 3 * * *"
   workflow_dispatch:
 
 permissions:
@@ -24,6 +26,111 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Generate same-origin channel data
+        env:
+          API_BASE: https://iptv-org.github.io/api
+        run: |
+          mkdir -p data
+          node <<'NODE'
+          const fs = require('fs')
+
+          const base = process.env.API_BASE
+
+          async function get(name) {
+            const response = await fetch(`${base}/${name}.json`)
+            if (!response.ok) throw new Error(`${name}.json: HTTP ${response.status}`)
+            return response.json()
+          }
+
+          function qualityScore(value = '') {
+            const match = String(value).match(/(\\d{3,4})p/i)
+            return match ? Number(match[1]) : 0
+          }
+
+          function streamScore(stream) {
+            const labels = Array.isArray(stream.labels) ? stream.labels : []
+            const geoBlocked = labels.some(x => /geo-blocked/i.test(x))
+            return (geoBlocked ? -100000 : 0)
+              + (String(stream.url || '').startsWith('https://') ? 1000 : 0)
+              + qualityScore(stream.quality)
+              - labels.length * 100
+          }
+
+          async function main() {
+            const [channels, streams, logos, countries] = await Promise.all([
+              get('channels'),
+              get('streams'),
+              get('logos'),
+              get('countries')
+            ])
+
+            const countryNames = new Map(countries.map(c => [c.code, c.name]))
+            const logosByChannel = new Map()
+
+            for (const logo of logos) {
+              if (!logo.channel || !logo.url || logo.in_use === false) continue
+              const existing = logosByChannel.get(logo.channel)
+              if (!existing || (!logo.feed && existing.feed)) {
+                logosByChannel.set(logo.channel, logo)
+              }
+            }
+
+            const streamsByChannel = new Map()
+
+            for (const stream of streams) {
+              if (!stream.channel || !stream.url) continue
+              const list = streamsByChannel.get(stream.channel) || []
+              list.push(stream)
+              streamsByChannel.set(stream.channel, list)
+            }
+
+            const output = []
+
+            for (const channel of channels) {
+              if (!channel.id || !channel.name || channel.is_nsfw) continue
+
+              const candidates = (streamsByChannel.get(channel.id) || [])
+                .filter(stream => !String(stream.labels || '').toLowerCase().includes('geo-blocked'))
+                .sort((a, b) => streamScore(b) - streamScore(a))
+
+              const stream = candidates[0]
+              if (!stream) continue
+
+              const logo = logosByChannel.get(channel.id)
+
+              output.push({
+                id: channel.id,
+                name: channel.name,
+                country: countryNames.get(channel.country) || channel.country || '',
+                categories: Array.isArray(channel.categories) ? channel.categories : [],
+                logo: logo?.url || '',
+                url: stream.url,
+                quality: stream.quality || '',
+                labels: Array.isArray(stream.labels) ? stream.labels : []
+              })
+            }
+
+            output.sort((a, b) => a.name.localeCompare(b.name))
+
+            fs.writeFileSync(
+              'data/channels.json',
+              JSON.stringify({
+                generatedAt: new Date().toISOString(),
+                source: 'iptv-org/api',
+                count: output.length,
+                channels: output
+              })
+            )
+
+            console.log(`Generated ${output.length} channels`)
+          }
+
+          main().catch(error => {
+            console.error(error)
+            process.exit(1)
+          })
+          NODE
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
