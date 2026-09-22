@@ -26,12 +26,12 @@ function escapeHTML(value) {
 function label(value) {
   return String(value || '')
     .replace(/[-_]+/g, ' ')
-    .replace(/\b\\w/g, char => char.toUpperCase());
+    .replace(/\b\w/g, char => char.toUpperCase());
 }
 
 function initials(name) {
   return String(name || '?')
-    .split(/\\s+/)
+    .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
     .map(word => word[0])
@@ -154,7 +154,7 @@ function play(channel) {
   $('#videoPlaceholder').style.display = 'none';
   video.style.display = 'block';
 
-  if (window.Hls && Hls.isSupported() && /\\.m3u8(?:$|[?#])/i.test(channel.url)) {
+  if (window.Hls && Hls.isSupported() && /\.m3u8(?:$|[?#])/i.test(channel.url)) {
     state.hls = new Hls({
       enableWorker: true,
       lowLatencyMode: true
