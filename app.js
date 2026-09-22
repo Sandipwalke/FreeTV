@@ -87,7 +87,7 @@ async function load() {
     const response = await fetch(CHANNELS_URL, { cache: 'no-store' });
     if (!response.ok) throw new Error(`Channel API returned ${response.status}`);
     const data = await response.json();
-    state.channels = data.map(normalizeChannel).filter(c => /^https?:\\/\\//i.test(c.url));
+    state.channels = data.map(normalizeChannel).filter(c => /^https?:\/\//i.test(c.url));
     if (!state.channels.length) throw new Error('No channels found');
     const count = $('#heroCount');
     if (count) count.textContent = state.channels.length.toLocaleString();
