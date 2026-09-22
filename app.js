@@ -1,81 +1,92 @@
-const PLAYLIST_URL = 'https://iptv-org.github.io/iptv/index.m3u';
-const state = { channels: [], filtered: [], visible: 24, genre: '', country: '', query: '', current: null };
-const $ = (selector) => document.querySelector(selector);
+const DATA_URL = new URL('data/channels.json', document.baseURI).href;
 
-function attr(line, name) {
-  const match = line.match(new RegExp(`${name}="([^"]*)"`, 'i'));
-  return match ? match[1].trim() : '';
+const state = {
+  channels: [],
+  filtered: [],
+  visible: 24,
+  genre: '',
+  country: '',
+  query: '',
+  current: null,
+  hls: null
+};
+
+const $ = selector => document.querySelector(selector);
+
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
 }
 
-function parseM3U(text) {
-  const lines = text.split(/\r?\n/);
-  const result = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    if (!lines[i].startsWith('#EXTINF')) continue;
-
-    const url = lines[i + 1] && !lines[i + 1].startsWith('#')
-      ? lines[i + 1].trim()
-      : '';
-
-    if (!/^https?:\/\//i.test(url)) continue;
-
-    const title = lines[i].slice(lines[i].lastIndexOf(',') + 1).trim() || 'Untitled channel';
-    const countryValue = attr(lines[i], 'tvg-country');
-    const groupValue = attr(lines[i], 'group-title');
-
-    result.push({
-      name: title,
-      url,
-      logo: attr(lines[i], 'tvg-logo'),
-      country: countryValue,
-      countries: countryValue.split(/[;,]/).map(x => x.trim()).filter(Boolean),
-      group: groupValue || 'General'
-    });
-  }
-
-  return result;
+function label(value) {
+  return String(value || '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\\w/g, char => char.toUpperCase());
 }
 
 function initials(name) {
-  return name.split(/\s+/).slice(0, 2).map(x => x[0]).join('').toUpperCase();
+  return String(name || '?')
+    .split(/\\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(word => word[0])
+    .join('')
+    .toUpperCase();
 }
 
 function logoHTML(channel, cls = 'channel-logo') {
   if (channel.logo) {
     return `<img class="${cls}" src="${escapeHTML(channel.logo)}" alt="" loading="lazy" onerror="this.style.display='none'>`;
   }
+
   return `<span class="${cls} fallback-logo">${escapeHTML(initials(channel.name))}</span>`;
 }
 
 function countries() {
-  const values = [...new Set(state.channels.flatMap(c => c.countries))]
-    .filter(Boolean)
+  const values = [...new Set(state.channels.map(channel => channel.country).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b));
 
   $('#countrySelect').innerHTML =
     '<option value="">All countries</option>' +
-    values.map(c => `<option value="${escapeHTML(c)}">${escapeHTML(c)}</option>`).join('');
+    values.map(country =>
+      `<option value="${escapeHTML(country)}">${escapeHTML(country)}</option>`
+    ).join('');
 }
 
 function genres() {
-  const values = [...new Set(state.channels.map(c => c.group).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b))
+  const values = [...new Set(
+    state.channels.flatMap(channel => channel.categories || []).filter(Boolean)
+  )]
+    .sort((a, b) => label(a).localeCompare(label(b)))
     .slice(0, 20);
 
   $('#genreChips').innerHTML =
     '<button class="chip active" data-genre="">All</button>' +
-    values.map(g => `<button class="chip" data-genre="${escapeHTML(g)}">${escapeHTML(g)}</button>`).join('');
+    values.map(genre =>
+      `<button class="chip" data-genre="${escapeHTML(genre)}">${escapeHTML(label(genre))}</button>`
+    ).join('');
 }
 
 function refresh() {
-  const q = state.query.toLowerCase().trim();
+  const query = state.query.toLowerCase().trim();
 
-  state.filtered = state.channels.filter(c =>
-    (!state.genre || c.group === state.genre) &&
-    (!state.country || c.countries.includes(state.country)) &&
-    (!q || `${c.name} ${c.country} ${c.group}`.toLowerCase().includes(q))
-  );
+  state.filtered = state.channels.filter(channel => {
+    const categories = channel.categories || [];
+    const haystack = [
+      channel.name,
+      channel.country,
+      ...categories.map(label)
+    ].join(' ').toLowerCase();
+
+    return (!state.genre || categories.includes(state.genre))
+      && (!state.country || channel.country === state.country)
+      && (!query || haystack.includes(query));
+  });
 
   state.visible = 24;
   renderGrid();
@@ -85,9 +96,17 @@ function renderGrid() {
   const visible = state.filtered.slice(0, state.visible);
 
   $('#channelGrid').innerHTML = visible.length
-    ? visible.map(c =>
-        `<button class="channel-card" data-index="${state.filtered.indexOf(c)}">${logoHTML(c)}<span class="channel-info"><strong>${escapeHTML(c.name)}</strong><small>${escapeHTML(c.country || c.group)}</small></span><span class="live-tag">● LIVE</span></button>`
-      ).join('')
+    ? visible.map(channel => {
+        const index = state.filtered.indexOf(channel);
+        return `<button class="channel-card" data-index="${index}">
+          ${logoHTML(channel)}
+          <span class="channel-info">
+            <strong>${escapeHTML(channel.name)}</strong>
+            <small>${escapeHTML(channel.country || 'Live stream')}</small>
+          </span>
+          <span class="live-tag">● LIVE</span>
+        </button>`;
+      }).join('')
     : '<div class="empty-state">No channels match your search.</div>';
 
   $('#loadMore').style.display =
@@ -95,62 +114,98 @@ function renderGrid() {
 }
 
 function renderQuick() {
-  const picks = [...state.channels].sort(() => Math.random() - 0.5).slice(0, 4);
+  const picks = [...state.channels]
+    .slice(0, 8)
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 4);
 
-  $('#quickPicks').innerHTML = picks.map(c =>
-    `<button class="quick-item" data-url="${encodeURIComponent(c.url)}">${logoHTML(c)}<span><strong>${escapeHTML(c.name)}</strong><small>${escapeHTML(c.country || c.group)}</small></span><span class="arrow">›</span></button>`
+  $('#quickPicks').innerHTML = picks.map(channel =>
+    `<button class="quick-item" data-index="${state.channels.indexOf(channel)}">
+      ${logoHTML(channel)}
+      <span>
+        <strong>${escapeHTML(channel.name)}</strong>
+        <small>${escapeHTML(channel.country || 'Live stream')}</small>
+      </span>
+      <span class="arrow">›</span>
+    </button>`
   ).join('');
 }
 
-function escapeHTML(s) {
-  return String(s).replace(/[&<>"']/g, x => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  }[x]));
+function stopPlayer() {
+  if (state.hls) {
+    state.hls.destroy();
+    state.hls = null;
+  }
+
+  const video = $('#video');
+  video.pause();
+  video.removeAttribute('src');
+  video.load();
 }
 
 function play(channel) {
   if (!channel?.url) return;
 
-  state.current = channel;
   const video = $('#video');
+
+  stopPlayer();
+  state.current = channel;
 
   $('#videoPlaceholder').style.display = 'none';
   video.style.display = 'block';
-  video.src = channel.url;
+
+  if (window.Hls && Hls.isSupported() && /\\.m3u8(?:$|[?#])/i.test(channel.url)) {
+    state.hls = new Hls({
+      enableWorker: true,
+      lowLatencyMode: true
+    });
+
+    state.hls.loadSource(channel.url);
+    state.hls.attachMedia(video);
+
+    state.hls.on(Hls.Events.ERROR, (_, data) => {
+      if (data?.fatal) {
+        console.warn('HLS playback failed:', data);
+        $('#nowMeta').textContent = 'Stream could not be played in this browser';
+      }
+    });
+  } else {
+    video.src = channel.url;
+  }
+
   video.play().catch(() => {});
 
   $('#nowTitle').textContent = channel.name;
   $('#nowMeta').textContent =
-    [channel.country, channel.group].filter(Boolean).join(' · ') || 'Live stream';
+    [channel.country, channel.quality].filter(Boolean).join(' · ') || 'Live stream';
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 async function load() {
   try {
-    const response = await fetch(PLAYLIST_URL, {
-      mode: 'cors',
+    $('#channelGrid').innerHTML =
+      '<div class="empty-state">Loading the channel guide<span class="loader"></span></div>';
+
+    const response = await fetch(`${DATA_URL}?v=${Date.now()}`, {
       cache: 'no-store'
     });
 
     if (!response.ok) {
-      throw new Error(`Playlist returned HTTP ${response.status}`);
+      throw new Error(`Channel data returned HTTP ${response.status}`);
     }
 
-    const text = await response.text();
+    const data = await response.json();
+    const channels = Array.isArray(data) ? data : data.channels;
 
-    if (!text.trim().startsWith('#EXTM3U')) {
-      throw new Error('Playlist response is not a valid M3U file');
+    if (!Array.isArray(channels) || !channels.length) {
+      throw new Error('Channel data is empty');
     }
 
-    state.channels = parseM3U(text);
+    state.channels = channels.filter(channel => channel.url && channel.name);
 
     if (!state.channels.length) {
-      throw new Error('No browser-compatible channels found');
+      throw new Error('No playable channels were generated');
     }
 
     const count = $('#heroCount');
@@ -174,37 +229,35 @@ async function load() {
   }
 }
 
-$('#searchInput').addEventListener('input', e => {
-  state.query = e.target.value;
+$('#searchInput').addEventListener('input', event => {
+  state.query = event.target.value;
   refresh();
 });
 
-$('#countrySelect').addEventListener('change', e => {
-  state.country = e.target.value;
+$('#countrySelect').addEventListener('change', event => {
+  state.country = event.target.value;
   refresh();
 });
 
-$('#genreChips').addEventListener('click', e => {
-  const chip = e.target.closest('.chip');
+$('#genreChips').addEventListener('click', event => {
+  const chip = event.target.closest('.chip');
   if (!chip) return;
 
   state.genre = chip.dataset.genre;
-  document.querySelectorAll('.chip').forEach(x =>
-    x.classList.toggle('active', x === chip)
+  document.querySelectorAll('.chip').forEach(item =>
+    item.classList.toggle('active', item === chip)
   );
   refresh();
 });
 
-$('#channelGrid').addEventListener('click', e => {
-  const card = e.target.closest('.channel-card');
+$('#channelGrid').addEventListener('click', event => {
+  const card = event.target.closest('.channel-card');
   if (card) play(state.filtered[Number(card.dataset.index)]);
 });
 
-$('#quickPicks').addEventListener('click', e => {
-  const item = e.target.closest('.quick-item');
-  if (item) {
-    play(state.channels.find(c => c.url === decodeURIComponent(item.dataset.url)));
-  }
+$('#quickPicks').addEventListener('click', event => {
+  const item = event.target.closest('.quick-item');
+  if (item) play(state.channels[Number(item.dataset.index)]);
 });
 
 $('#randomButton').addEventListener('click', () => {
@@ -224,7 +277,9 @@ $('#shareButton').addEventListener('click', async () => {
   try {
     await navigator.clipboard.writeText(state.current.url);
     $('#shareButton').innerHTML = '✓ <span>Copied</span>';
-    setTimeout(() => $('#shareButton').innerHTML = '↗ <span>Share</span>', 1500);
+    setTimeout(() => {
+      $('#shareButton').innerHTML = '↗ <span>Share</span>';
+    }, 1500);
   } catch {}
 });
 
