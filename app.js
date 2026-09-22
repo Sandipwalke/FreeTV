@@ -8,7 +8,9 @@ const state = {
   country: '',
   query: '',
   current: null,
-  hls: null
+  hls: null,
+  favorites: new Set(),
+  favoriteGenre: '__favorites__'
 };
 
 const $ = selector => document.querySelector(selector);
@@ -39,6 +41,37 @@ function initials(name) {
     .toUpperCase();
 }
 
+function favoriteKey(channel) {
+  return String(channel.id || [channel.name, channel.country || '', channel.url || ''].join('|'));
+}
+
+function loadFavorites() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('freetv:favorites') || '[]');
+    state.favorites = new Set(Array.isArray(saved) ? saved : []);
+  } catch {
+    state.favorites = new Set();
+  }
+}
+
+function saveFavorites() {
+  try {
+    localStorage.setItem('freetv:favorites', JSON.stringify([...state.favorites]));
+  } catch {}
+}
+
+function isFavorite(channel) {
+  return state.favorites.has(favoriteKey(channel));
+}
+
+function toggleFavorite(channel) {
+  const key = favoriteKey(channel);
+  if (state.favorites.has(key)) state.favorites.delete(key);
+  else state.favorites.add(key);
+  saveFavorites();
+  refresh();
+}
+
 function logoHTML(channel, cls = 'channel-logo') {
   if (channel.logo) {
     return `<img class="${cls}" src="${escapeHTML(channel.logo)}" alt="" loading="lazy" onerror="this.style.display='none'>`;
@@ -67,6 +100,7 @@ function genres() {
 
   $('#genreChips').innerHTML =
     '<button class="chip active" data-genre="">All</button>' +
+    '<button class="chip favorites-chip" data-genre="__favorites__">♥ Favorites</button>' +
     values.map(genre =>
       `<button class="chip" data-genre="${escapeHTML(genre)}">${escapeHTML(label(genre))}</button>`
     ).join('');
@@ -83,7 +117,11 @@ function refresh() {
       ...categories.map(label)
     ].join(' ').toLowerCase();
 
-    return (!state.genre || categories.includes(state.genre))
+    const matchesGenre = state.genre === state.favoriteGenre
+      ? isFavorite(channel)
+      : (!state.genre || categories.includes(state.genre));
+
+    return matchesGenre
       && (!state.country || channel.country === state.country)
       && (!query || haystack.includes(query));
   });
@@ -98,14 +136,16 @@ function renderGrid() {
   $('#channelGrid').innerHTML = visible.length
     ? visible.map(channel => {
         const index = state.filtered.indexOf(channel);
-        return `<button class="channel-card" data-index="${index}">
+        const favorite = isFavorite(channel);
+        return `<article class="channel-card" data-index="${index}">
           ${logoHTML(channel)}
           <span class="channel-info">
             <strong>${escapeHTML(channel.name)}</strong>
             <small>${escapeHTML(channel.country || 'Live stream')}</small>
           </span>
           <span class="live-tag">● LIVE</span>
-        </button>`;
+          <button class="favorite-button${favorite ? ' active' : ''}" type="button" data-favorite-index="${index}" aria-label="${favorite ? 'Remove from favorites' : 'Add to favorites'}" aria-pressed="${favorite}">${favorite ? '♥' : '♡'}</button>
+        </article>`;
       }).join('')
     : '<div class="empty-state">No channels match your search.</div>';
 
@@ -182,6 +222,8 @@ function play(channel) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+loadFavorites();
+
 async function load() {
   try {
     $('#channelGrid').innerHTML =
@@ -251,6 +293,13 @@ $('#genreChips').addEventListener('click', event => {
 });
 
 $('#channelGrid').addEventListener('click', event => {
+  const favoriteButton = event.target.closest('.favorite-button');
+  if (favoriteButton) {
+    event.stopPropagation();
+    toggleFavorite(state.filtered[Number(favoriteButton.dataset.favoriteIndex)]);
+    return;
+  }
+
   const card = event.target.closest('.channel-card');
   if (card) play(state.filtered[Number(card.dataset.index)]);
 });
