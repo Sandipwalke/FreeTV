@@ -23,12 +23,11 @@
     <section class="player-layout">
       <div class="player-card">
         <div class="video-wrap" id="videoWrap">
-          <canvas id="ambientCanvas" aria-hidden="true"></canvas>
           <div class="video-placeholder" id="videoPlaceholder"><div class="play-orb">▶</div><p>Select a channel to start watching</p><small>Streams open in your browser</small></div>
           <video id="video" controls playsinline></video>
         </div>
         <div class="now-playing">
-          <div><span class="kicker">NOW PLAYING</span><h2 id="nowTitle">Choose a channel</h2><p id="nowMeta">Your selected stream will appear here</p></div>
+          <div class="now-channel"><span class="now-logo" id="nowLogo" aria-hidden="true"></span><div class="now-copy"><span class="kicker">NOW PLAYING</span><h2 id="nowTitle">Choose a channel</h2><p id="nowMeta">Your selected stream will appear here</p></div></div>
           <button class="share-button" id="shareButton" title="Copy stream link">↗ <span>Share</span></button>
         </div>
       </div>
