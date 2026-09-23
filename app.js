@@ -9,6 +9,7 @@ const state = {
   query: '',
   current: null,
   hls: null,
+  streamIndex: 0,
   favorites: new Set(),
   favoriteGenre: '__favorites__'
 };
@@ -172,7 +173,7 @@ function renderQuick() {
   ).join('');
 }
 
-function stopPlayer() {
+function stopPlayer(resetSource = true) {
   if (state.hls) {
     state.hls.destroy();
     state.hls = null;
@@ -180,49 +181,90 @@ function stopPlayer() {
 
   const video = $('#video');
   video.pause();
-  video.removeAttribute('src');
-  video.load();
+
+  if (resetSource) {
+    video.removeAttribute('src');
+    video.load();
+  }
 }
 
-function play(channel) {
-  if (!channel?.url) return;
+function channelStreams(channel) {
+  const streams = Array.isArray(channel?.streams) && channel.streams.length
+    ? channel.streams
+    : (channel?.url ? [{ url: channel.url, quality: channel.quality || '', labels: channel.labels || [] }] : []);
 
+  return streams.filter(stream => stream?.url);
+}
+
+function playStream(channel, index = 0) {
+  const streams = channelStreams(channel);
+  if (!streams.length || index >= streams.length) {
+    $('#nowMeta').textContent = 'Stream could not be played in this browser';
+    return;
+  }
+
+  state.streamIndex = index;
+  const stream = streams[index];
   const video = $('#video');
 
-  stopPlayer();
-  state.current = channel;
+  stopPlayer(false);
+  video.removeAttribute('src');
+  video.load();
 
-  $('#videoPlaceholder').style.display = 'none';
-  video.style.display = 'block';
+  const failover = () => {
+    if (state.current !== channel || state.streamIndex !== index) return;
+    console.warn('Stream playback failed, trying backup:', index + 1);
+    if (index + 1 < streams.length) {
+      playStream(channel, index + 1);
+    } else {
+      $('#nowMeta').textContent = 'Stream could not be played in this browser';
+    }
+  };
 
-  if (window.Hls && Hls.isSupported() && /\.m3u8(?:$|[?#])/i.test(channel.url)) {
+  video.onerror = failover;
+
+  if (window.Hls && Hls.isSupported() && /\.m3u8(?:$|[?#])/i.test(stream.url)) {
     state.hls = new Hls({
       enableWorker: true,
       lowLatencyMode: true
     });
 
-    state.hls.loadSource(channel.url);
+    state.hls.loadSource(stream.url);
     state.hls.attachMedia(video);
 
     state.hls.on(Hls.Events.ERROR, (_, data) => {
       if (data?.fatal) {
-        console.warn('HLS playback failed:', data);
-        $('#nowMeta').textContent = 'Stream could not be played in this browser';
+        console.warn('HLS playback failed, trying backup:', index + 1, data);
+        failover();
       }
     });
   } else {
-    video.src = channel.url;
+    video.src = stream.url;
   }
 
   video.play().catch(() => {});
+}
+
+function play(channel) {
+  if (!channelStreams(channel).length) return;
+
+  stopPlayer();
+  state.current = channel;
+  state.streamIndex = 0;
+
+  $('#videoPlaceholder').style.display = 'none';
+  $('#video').style.display = 'block';
+
+  playStream(channel, 0);
 
   const nowLogo = $('#nowLogo');
   nowLogo.innerHTML = channel.logo
     ? `<img src="${escapeHTML(channel.logo)}" alt="">`
     : escapeHTML(initials(channel.name));
   $('#nowTitle').textContent = channel.name;
+  const primary = channelStreams(channel)[0];
   $('#nowMeta').textContent =
-    [channel.country, channel.quality].filter(Boolean).join(' · ') || 'Live stream';
+    [channel.country, primary?.quality || channel.quality].filter(Boolean).join(' · ') || 'Live stream';
 
   renderGrid();
   window.scrollTo({ top: 0, behavior: 'smooth' });
