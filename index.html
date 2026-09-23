@@ -2,7 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
   <meta name="theme-color" content="#090b14" />
   <meta name="description" content="FreeTV — a modern directory for free, publicly available live TV streams." />
   <title>FreeTV — Live channels, freely</title>
@@ -52,5 +58,6 @@
   <footer class="shell footer"><span>FreeTV</span><span>Powered by the <a href="https://github.com/iptv-org/iptv" target="_blank" rel="noreferrer">iptv-org</a> community</span><span>Free and open web streams</span></footer>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script>
   <script src="app.js"></script>
+  <script>if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));</script>
 </body>
 </html>
