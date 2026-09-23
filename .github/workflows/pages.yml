@@ -94,8 +94,7 @@ jobs:
                 .filter(stream => !String(stream.labels || '').toLowerCase().includes('geo-blocked'))
                 .sort((a, b) => streamScore(b) - streamScore(a))
 
-              const stream = candidates[0]
-              if (!stream) continue
+              if (!candidates.length) continue
 
               const logo = logosByChannel.get(channel.id)
 
@@ -104,10 +103,14 @@ jobs:
                 name: channel.name,
                 country: countryNames.get(channel.country) || channel.country || '',
                 categories: Array.isArray(channel.categories) ? channel.categories : [],
-                logo: logo?.url || '',
-                url: stream.url,
-                quality: stream.quality || '',
-                labels: Array.isArray(stream.labels) ? stream.labels : []
+                streams: candidates.map(stream => ({
+                  url: stream.url,
+                  quality: stream.quality || '',
+                  labels: Array.isArray(stream.labels) ? stream.labels : []
+                })),
+                url: candidates[0].url,
+                quality: candidates[0].quality || '',
+                labels: Array.isArray(candidates[0].labels) ? candidates[0].labels : []
               })
             }
 
