@@ -137,7 +137,8 @@ function renderGrid() {
     ? visible.map(channel => {
         const index = state.filtered.indexOf(channel);
         const favorite = isFavorite(channel);
-        return `<article class="channel-card" data-index="${index}">
+        const selected = state.current && favoriteKey(state.current) === favoriteKey(channel);
+        return `<article class="channel-card${selected ? " selected" : ""}" data-index="${index}">
           ${logoHTML(channel)}
           <span class="channel-info">
             <strong>${escapeHTML(channel.name)}</strong>
@@ -215,10 +216,15 @@ function play(channel) {
 
   video.play().catch(() => {});
 
+  const nowLogo = $('#nowLogo');
+  nowLogo.innerHTML = channel.logo
+    ? `<img src="${escapeHTML(channel.logo)}" alt="">`
+    : escapeHTML(initials(channel.name));
   $('#nowTitle').textContent = channel.name;
   $('#nowMeta').textContent =
     [channel.country, channel.quality].filter(Boolean).join(' · ') || 'Live stream';
 
+  renderGrid();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
